@@ -275,6 +275,8 @@ confint(global.model3,
 
 
 
+#######################################################
+
 ### figures
 
 library(coefplot)
@@ -286,11 +288,8 @@ coefplot(model2a)
 
 
 names(dframe1)
-plot(log(NN,10)~log(PlantCount,10), data = dframe1, fill=LarvaePresent)
 
-
-
-
+### occupancy
 
 ### some predicted datasets
 
@@ -383,6 +382,99 @@ g1 <- ggplot(dframe1,
                    legend.justification=c(1,0), legend.position=c(0.95,0.15))
 
 g1
+
+
+### abundance
+
+
+### plant-level occupancy
+names(dframe2)
+
+summary(model3)
+
+plot(PlantHeight ~ Flowerspikes, data = dframe2)
+
+
+# probability of plant occupancy
+newdata2<-expand.grid(Flowerspikes=(seq(1,12,1)),PlantHeight=(seq(32,198,1)),
+                     Site=c(7,16,27,32,38,40,47), LarvaePresent=1)
+newdata2$LarvaePresent <- predict(model3,newdata=newdata2,type="response")
+
+
+# site size at 50% occupancy
+newdata2_0.5 <- subset(newdata2, LarvaePresent < 0.51,
+                       select=c(Flowerspikes,PlantHeight,LarvaePresent))
+newdata2_0.5 <- subset(newdata2_0.5, LarvaePresent > 0.49,
+                       select=c(Flowerspikes,PlantHeight,LarvaePresent))
+
+
+# site size at 90% occupancy
+newdata2_0.9 <- subset(newdata2, LarvaePresent < 0.91,
+                       select=c(Flowerspikes,PlantHeight,LarvaePresent))
+newdata2_0.9 <- subset(newdata2_0.9, LarvaePresent > 0.89,
+                       select=c(Flowerspikes,PlantHeight,LarvaePresent))
+
+
+# site size at 10% occupancy
+newdata2_0.1 <- subset(newdata2, LarvaePresent < 0.11,
+                       select=c(Flowerspikes,PlantHeight,LarvaePresent))
+newdata2_0.1 <- subset(newdata2_0.1, LarvaePresent > 0.09,
+                       select=c(Flowerspikes,PlantHeight,LarvaePresent))
+
+# site size at 97.5% occupancy
+newdata2_0.975 <- subset(newdata2, LarvaePresent < 0.98,
+                         select=c(Flowerspikes,PlantHeight,LarvaePresent))
+newdata2_0.975 <- subset(newdata2_0.975, LarvaePresent > 0.97,
+                         select=c(Flowerspikes,PlantHeight,LarvaePresent))
+
+# site size at 2.5% occupancy
+newdata2_0.025 <- subset(newdata2, LarvaePresent < 0.03,
+                         select=c(Flowerspikes,PlantHeight,LarvaePresent))
+newdata2_0.025 <- subset(newdata2_0.025, LarvaePresent > 0.02,
+                         select=c(Flowerspikes,PlantHeight,LarvaePresent))
+
+
+g3 <- ggplot(dframe2,
+             aes(x=Flowerspikes, y=PlantHeight))+
+  geom_point(size=2,colour="black",fill="white",stroke=1, position=position_jitter(w=0.5),
+             aes(shape=factor(LarvaePresent)))+
+  scale_shape_manual(values=c(21,16),
+                     labels=c("Absent","Present"),
+                     name=expression(paste(italic("S. lychnitis "),"larvae")))+
+  scale_y_continuous(limits = c(0, 220))+
+  scale_x_continuous(breaks = seq(1, 12, 1))+
+  geom_smooth(colour="black",
+              data = newdata2_0.5, aes(x=Flowerspikes, y=PlantHeight),
+              method=lm,se=FALSE,
+              fullrange=TRUE)+
+  geom_smooth(linetype="dashed",
+              colour="black",
+              data = newdata2_0.975, aes(x=Flowerspikes, y=PlantHeight),
+              method=lm,se=FALSE,
+              fullrange=TRUE)+
+  geom_smooth(linetype="dashed",
+              colour="black",
+              data = newdata2_0.025, aes(x=Flowerspikes, y=PlantHeight),
+              method=lm,se=FALSE,
+              fullrange=TRUE)+
+  xlab(expression(paste("No. ",
+                        italic("V. nigrum "), "flowerspikes per plant")))+
+  ylab(expression(paste(italic("V. nigrum "), "plant height (cm)")))+
+  theme(panel.background=element_rect(fill="white"),
+        panel.grid.major.x=element_line(colour="gray90"),
+        panel.grid.major.y=element_line(colour="gray90"),
+        panel.grid.minor=element_blank(),
+        panel.border=element_rect(color="black",fill=F,size=1),
+        text=element_text(size=15),
+        axis.text=element_text(color="black"),
+        legend.title=element_text(),
+        legend.background=element_rect(fill="white", colour="black"),
+        legend.key = element_blank(),
+        legend.justification=c(1,1), legend.position=c(0.95,0.95))
+
+g3
+
+
 
 
 
