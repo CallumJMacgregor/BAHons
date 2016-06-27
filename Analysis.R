@@ -2,21 +2,28 @@
 ### Factors determining distribution and abundance of Striped Lychnis ###
 #########################################################################
 
-# dframe2 <- read.csv(file.choose())
+### Clear the workspace
+rm(list=ls())
+
+
+### install if necessary and then load the libraries you need
+
+j <- c("lme4","bbmle","ggplot2","RVAideMemoire","arm","MuMIn","plyr","coefplot","scales","multcomp")
+ 
+new.packages <- j[!(j %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+lapply(j, require, character.only = TRUE)  # loads up any libraries that aren't already loaded
+
+
+### load up Callum's custom set of functions
+f <- c("CheckResidsFunction.R")
+lapply(f, source)
 
 dframe1 <- read.csv("Data/Sites.csv")
 
-
-library(lme4)
-library(arm)
-library(MuMIn)
-library(bbmle)
-
-source("CheckResidsFunction.R")
-
-# source(file.choose())
-
 dframe1$Site <- factor(dframe1$Site)
+dframe1$fWeevilDensity <- factor(dframe1$WeevilDensity)
 dframe1$WeevilDensity <- ordered(dframe1$WeevilDensity, levels = c("N","R","O","F","A","D"))
 dframe1$PlantDensity <- ordered(dframe1$PlantDensity, levels = c("R","O","F","A","D"))
 dframe1$WildflowerVerge <- factor(dframe1$WildflowerVerge)
@@ -130,7 +137,11 @@ drop1(model2, test="Chisq")
 
 chkres(model2) # pretty bad - but there are loads of zeroes skewing these data
 
+
+
 ### Larval abundance - present only
+
+
 
 dframe1P <- subset(dframe1,LarvaePresent==1)
 
@@ -192,6 +203,14 @@ AIC(model2a,model2b,model2c) # again model2a is best (NNSmoothed)
 summary(model2a)
 drop1(model2a, test = "Chi")
 
+# posthoc comparisons between categories
+
+
+summary(glht(model2a, linfct = mcp(WeevilDensity="Tukey")))
+
+
+
+
 # information theoretic approach
 
 global.model2 <- glm(MaxLarvae ~ 
@@ -205,6 +224,9 @@ summary(global.model2)
 drop1(global.model2, test="Chisq")
 
 chkres(global.model2)
+
+
+
 
 
 stdz.model2 <- standardize(global.model2,
@@ -278,10 +300,6 @@ confint(global.model3,
 #######################################################
 
 ### figures
-
-library(coefplot)
-library(arm)
-library(ggplot2)
 
 coefplot(model1)
 coefplot(model2a)
@@ -385,6 +403,80 @@ g1
 
 
 ### abundance
+names(dframe1)
+summary(model2a)
+drop1(model2a, test="Chi")
+
+plot(MaxLarvae ~ WeevilDensity, data = dframe1)
+
+
+model2af <- glm(MaxLarvae ~ 
+                 PlantDensity + MeanSward + 
+                 fWeevilDensity + NNSmoothed,
+               family = poisson (link = "log"),
+               data = dframe1P)
+
+summary(model2af)
+drop1(model2af, test = "Chi")
+
+
+# larval abundance - predicted
+newdata1<-expand.grid(NNSmoothed=2.038,PlantDensity="O",
+                      MeanSward=23.15,WeevilDensity=c("N","R","O","F","A","D"),MaxLarvae=1)
+preddat1 <- predict(model2a,newdata=newdata1,type="response",se.fit=TRUE)
+preddat1
+
+newdata1 <- cbind(newdata1,preddat1)
+newdata1 <- data.frame(
+  newdata1
+  , plo = newdata1$fit-1.96*newdata1$se.fit
+  , phi = newdata1$fit+1.96*newdata1$se.fit
+  , selo = newdata1$fit-newdata1$se.fit
+  , sehi = newdata1$fit+newdata1$se.fit
+)
+
+
+# larvae abundance - model S.E. on 
+newdata1a <- data.frame(
+  newdata1
+  , plo = newdata1$fit-1.96*newdata1$se.fit
+  , phi = newdata1$fit+1.96*newdata1$se.fit
+  , selo = newdata1$fit-newdata1$se.fit
+  , sehi = newdata1$fit+newdata1$se.fit
+)
+
+
+
+
+g2 <- ggplot(newdata1,
+             aes(x=WeevilDensity, y=fit))+
+  geom_bar(colour="black", fill="grey80", stat="identity")+
+  geom_errorbar(data = newdata1,
+                aes(ymin = selo, ymax = sehi),
+                colour="black",size=0.8, width=0.5,
+                position=position_dodge(width=0.9))+
+  scale_y_continuous(limits = c(0,30), oob=squish)+
+  scale_x_discrete(breaks=c("N", "R", "O","F","A","D"),
+                   labels=c("None", "Rare", "Occasional","Frequent","Abundant","Dominant"))+
+  guides(fill=FALSE)+
+  xlab(expression(paste("Density of ", italic("C. nigritarsis"), " larvae")))+
+  ylab(expression(paste("Maximum no. ", italic("S. lychnitis"), " larvae")))+ 
+  theme(panel.background=element_rect(fill="white"),
+        panel.grid.major.x=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.grid.major.y=element_line(colour="gray60"),
+        panel.border=element_rect(color="black",fill=F,size=1),
+        axis.text.x=element_text(angle=45, hjust=1),
+        axis.text=element_text(color="black"),
+        text=element_text(size=15))+
+  geom_point(data = dframe1P, aes(x=WeevilDensity, y=MaxLarvae),
+             size=2,shape=4,colour="black",fill="grey80",stroke=1.5, position=position_jitter(w=0.2))
+
+
+g2
+
+
+
 
 
 ### plant-level occupancy
@@ -477,69 +569,3 @@ g3
 
 
 
-
-
-
-
-# sample code
-
-newdata3<-expand.grid(Light=(c("HPS","LED")),Regime=(c("AllNight","Midnight")),Distance=0,SeedSetYN=1)
-mm3<-model.matrix(terms(model3YN),newdata3)
-newdata3$SeedSetYN = exp(mm3 %*% fixef(model3YN))
-pvar3 <- diag(mm3 %*% tcrossprod(vcov(model3YN),mm3))
-newdata3 <- data.frame(
-  newdata3
-  , plo = newdata3$SeedSetYN-1.96*sqrt(pvar3)
-  , phi = newdata3$SeedSetYN+1.96*sqrt(pvar3)
-)
-newdata3 
-
-
-
-#Plot
-
-
-g3 <- ggplot(newdata3,
-             aes(x=Light, y=SeedSetYN, fill=Regime))+
-  geom_bar(colour="black",stat="identity",position=position_dodge())+
-  scale_fill_manual(values=c("goldenrod","gray30"))+
-  guides(fill=FALSE)+
-  xlab("Pollinator treatment")+ ylab("Average seed count per seed capsule")+ 
-  geom_errorbar(aes(ymin = plo, ymax = phi),
-                colour="black",size=0.8, width=0.5,
-                position=position_dodge(width=0.9))+
-  theme(panel.background=element_rect(fill="white"),
-        panel.grid.major=element_blank(),
-        panel.grid.minor=element_blank(),
-        panel.border=element_rect(color="black",fill=F,size=1))
-
-g3
-
-#alternate method
-
-model3YNs <- glm(SeedSetYN ~ Light + Regime + Distance,
-                 family = binomial (link = logit),
-                 data = dframeYNa)
-
-summary(model3YNs)
-drop1(model3YNs, test = "Chi")   # very similar outputs so fine to proceed
-
-newdata3a<-expand.grid(Light=(c("HPS","LED")),Regime=(c("AllNight","Midnight")),Distance=0,SeedSetYN=1)
-newdata3a$SeedSetYN <- predict(model3YNs,newdata=newdata3a,type="response")
-preddat <- predict(model3YNs,newdata=newdata3a,type="response",se.fit=TRUE)
-preddat
-
-newdata3a <- cbind(newdata3a,preddat)
-newdata3a
-
-newdata3a <- data.frame(
-  newdata3a
-  , plo = newdata3a$fit-1.96*newdata3a$se.fit
-  , phi = newdata3a$fit+1.96*newdata3a$se.fit
-)
-newdata3a
-
-newdata3a$Regime <- revalue(newdata3a$Regime, c("AllNight"="Full night","Midnight"="Part night"))
-newdata3a
-
-#Plot
